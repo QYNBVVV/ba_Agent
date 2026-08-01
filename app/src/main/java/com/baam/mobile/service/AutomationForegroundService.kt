@@ -34,6 +34,7 @@ class AutomationForegroundService : LifecycleService() {
     @Inject lateinit var taskProvider: TaskProvider
     @Inject lateinit var engine: AutomationEngine
     @Inject lateinit var taskRunner: TaskRunner
+    @Inject lateinit var batchRunner: com.baam.mobile.engine.task.TaskBatchRunner
     @Inject lateinit var safety: SafetyController
     @Inject lateinit var logBus: LogBus
     @Inject lateinit var notificationHelper: NotificationHelper
@@ -64,16 +65,54 @@ class AutomationForegroundService : LifecycleService() {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                startForegroundAndRun(taskId)
+                startForegroundAndRunTask(taskId)
+            }
+            ACTION_START_BATCH -> {
+                val ids = intent.getStringArrayListExtra(EXTRA_TASK_IDS) ?: emptyList()
+                val recovery = intent.getBooleanExtra(EXTRA_RECOVERY, true)
+                if (ids.isEmpty()) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                startForegroundAndRunBatch(ids, recovery)
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun startForegroundAndRun(taskId: String) {
+    private fun startForegroundAndRunTask(taskId: String) {
         val task = taskProvider.get(taskId)
+        startForegroundWith(task.displayName)
+
+        floatingButton?.show { safety.requestStop() }
+        logBus.emit("Service", "开始任务: ${task.displayName}")
+
+        lifecycleScope.launch {
+            val result = taskRunner.run(task) { engine }
+            logBus.emit("Service", "任务结束: $result")
+            cleanupAndStop()
+        }
+    }
+
+    private fun startForegroundAndRunBatch(taskIds: List<String>, recovery: Boolean) {
+        val names = taskIds.mapNotNull { taskProvider.get(it).displayName }
+        val summary = if (names.size > 2) "${names.first()} 等${names.size}个任务" else names.joinToString("、")
+        startForegroundWith(summary)
+
+        floatingButton?.show { safety.requestStop() }
+        logBus.emit("Service", "开始批次: $summary (恢复重试=$recovery)")
+
+        lifecycleScope.launch {
+            val results = batchRunner.runBatch(taskIds, taskProvider, { engine }, recovery)
+            val okCount = results.count { it.result == com.baam.mobile.engine.task.TaskResult.Success }
+            logBus.emit("Service", "批次结束: 成功 $okCount/${results.size}")
+            cleanupAndStop()
+        }
+    }
+
+    private fun startForegroundWith(label: String) {
         notificationHelper.ensureChannel()
-        val notification = notificationHelper.buildRunningNotification(task.displayName)
+        val notification = notificationHelper.buildRunningNotification(label)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NotificationHelper.NOTIFICATION_ID,
@@ -83,19 +122,12 @@ class AutomationForegroundService : LifecycleService() {
         } else {
             startForeground(NotificationHelper.NOTIFICATION_ID, notification)
         }
+    }
 
-        // 第 2 道防线：悬浮窗停止按钮
-        floatingButton?.show { safety.requestStop() }
-        logBus.emit("Service", "开始任务: ${task.displayName}")
-
-        lifecycleScope.launch {
-            val result = taskRunner.run(task) { engine }
-            logBus.emit("Service", "任务结束: $result")
-
-            floatingButton?.dismiss()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }
+    private fun cleanupAndStop() {
+        floatingButton?.dismiss()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     override fun onDestroy() {
@@ -105,13 +137,29 @@ class AutomationForegroundService : LifecycleService() {
 
     companion object {
         const val ACTION_START_TASK = "com.baam.mobile.action.START_TASK"
+        const val ACTION_START_BATCH = "com.baam.mobile.action.START_BATCH"
         const val ACTION_STOP = "com.baam.mobile.action.STOP"
         const val EXTRA_TASK_ID = "task_id"
+        const val EXTRA_TASK_IDS = "task_ids"
+        const val EXTRA_RECOVERY = "recovery"
 
         fun startTask(context: android.content.Context, taskId: String) {
             val intent = Intent(context, AutomationForegroundService::class.java).apply {
                 action = ACTION_START_TASK
                 putExtra(EXTRA_TASK_ID, taskId)
+            }
+            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun startBatch(
+            context: android.content.Context,
+            taskIds: List<String>,
+            recovery: Boolean = true,
+        ) {
+            val intent = Intent(context, AutomationForegroundService::class.java).apply {
+                action = ACTION_START_BATCH
+                putStringArrayListExtra(EXTRA_TASK_IDS, ArrayList(taskIds))
+                putExtra(EXTRA_RECOVERY, recovery)
             }
             androidx.core.content.ContextCompat.startForegroundService(context, intent)
         }

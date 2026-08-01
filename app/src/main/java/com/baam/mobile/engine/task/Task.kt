@@ -43,6 +43,12 @@ interface TaskContext {
     /** 点击场景匹配中心（命中则点击，返回是否点了） */
     suspend fun tapIfFound(scene: Scene): Boolean
 
+    /** 等待加载圈消失（最多 [timeoutMs]） */
+    suspend fun waitForLoading(timeoutMs: Long = 20_000)
+
+    /** 协程友好的 sleep，期间会响应停止请求 */
+    suspend fun sleep(ms: Long)
+
     /** 记录日志（UI 可见） */
     fun log(msg: String)
 

@@ -84,6 +84,35 @@ class AutomationEngine @Inject constructor(
         return false
     }
 
+    override suspend fun waitForLoading(timeoutMs: Long) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        // 先等加载圈出现或直接进入加载（最多 2s 检测窗口）
+        var detectWindow = 2000L
+        while (System.currentTimeMillis() < deadline) {
+            safety.checkStopOrThrow()
+            // 仍在加载
+            if (find(com.baam.mobile.engine.scene.SceneLibrary.LOADING).found) {
+                delay(500)
+                detectWindow = 0  // 已检测到加载，后续持续等消失
+                continue
+            }
+            // 加载已消失（或从未出现）
+            if (detectWindow <= 0) return  // 之前在加载，现在消失了 → 完成
+            detectWindow -= 500
+            delay(500)
+        }
+    }
+
+    override suspend fun sleep(ms: Long) {
+        val step = 200L
+        var remaining = ms
+        while (remaining > 0) {
+            safety.checkStopOrThrow()
+            delay(minOf(step, remaining))
+            remaining -= step
+        }
+    }
+
     override fun log(msg: String) {
         Timber.i("[Engine] $msg")
         logBus.emit("Engine", msg)

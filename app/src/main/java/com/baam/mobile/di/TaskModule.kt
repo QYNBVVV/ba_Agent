@@ -1,5 +1,6 @@
 package com.baam.mobile.di
 
+import com.baam.mobile.domain.tasks.CafeTask
 import com.baam.mobile.domain.tasks.HelloTask
 import com.baam.mobile.engine.task.Task
 import dagger.Module
@@ -18,4 +19,8 @@ object TaskModule {
     @Provides
     @IntoSet
     fun provideHelloTask(task: HelloTask): Task = task
+
+    @Provides
+    @IntoSet
+    fun provideCafeTask(task: CafeTask): Task = task
 }
