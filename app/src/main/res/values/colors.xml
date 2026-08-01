@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="baam_primary">#3F51B5</color>
+    <color name="baam_primary_dark">#303F9F</color>
+    <color name="baam_accent">#FF4081</color>
+    <color name="baam_danger">#D32F2F</color>
+</resources>

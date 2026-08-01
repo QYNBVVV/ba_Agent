@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BAAM Mobile</string>
+    <string name="accessibility_service_label">BAAM 自动化</string>
+    <string name="accessibility_service_desc">为蔚蓝档案提供截图、点击与紧急停止能力。仅用于游戏自动化，不读取任何其他应用内容。</string>
+
+    <!-- 前台服务通知 -->
+    <string name="fg_channel_id">baam_running</string>
+    <string name="fg_channel_name">自动化运行</string>
+    <string name="fg_notification_title">BAAM 运行中</string>
+    <string name="fg_notification_text">自动化任务执行中，请勿操作手机</string>
+    <string name="fg_action_stop">立即停止</string>
+    <string name="fg_action_pause">暂停</string>
+</resources>
